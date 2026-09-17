@@ -1,0 +1,20 @@
+# render.yaml — קובץ תצורה ל-Render (Blueprint).
+# כשמעלים את הפרויקט ל-GitHub ואז יוצרים ב-Render "New > Blueprint" ומצביעים על הריפו,
+# Render קורא את הקובץ הזה ומגדיר את השירות אוטומטית — כמעט בלי צורך למלא שום דבר ידנית.
+
+services:
+  - type: web
+    name: moked-achzaka
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # ערך אקראי ובטוח נוצר אוטומטית ע"י Render — אין צורך למלא ידנית.
+      - key: SESSION_SECRET
+        generateValue: true
+
+# הערה: בתוכנית החינמית (free) הדיסק אינו קבוע (ephemeral) — קובץ מסד הנתונים
+# (data/app.db) והתמונות שהועלו (uploads/) עלולים להימחק בפריסה מחדש.
+# כדי לפתור זאת בעתיד: משדרגים את השירות לתוכנית בתשלום ומוסיפים "Disk" ב-Render
+# שמוצמד לתיקיות data ו-uploads.

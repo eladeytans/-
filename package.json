@@ -1,0 +1,21 @@
+{
+  "name": "moked-achzaka-app",
+  "version": "1.0.0",
+  "description": "מוקד אחזקה — מערכת לדיווח ותיעדוף תקלות אחזקה במפעל, עם שרת Node.js ומסד נתונים אמיתי.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "multer": "^2.2.0"
+  }
+}
