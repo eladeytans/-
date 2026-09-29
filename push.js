@@ -80,7 +80,10 @@ async function notifyInternalTeam(payload) {
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
         db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(s.id);
       } else {
-        console.warn("⚠️  שליחת התראת דחיפה נכשלה:", err && err.message);
+        console.warn("⚠️  שליחת התראת דחיפה נכשלה:", err && err.message,
+          "| statusCode:", err && err.statusCode,
+          "| body:", err && err.body,
+          "| endpoint:", s.endpoint && s.endpoint.slice(0, 60));
       }
     }
   }));
