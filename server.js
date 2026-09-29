@@ -153,7 +153,7 @@ app.post("/api/tasks", upload.array("attachments", 10), (req, res) => {
     body: createdTask.title,
     url: "/?task=" + createdTask.id,
     tag: "task-" + createdTask.id
-  }).catch(() => {});
+  }).catch((err) => { console.error("❌ notifyInternalTeam top-level failure:", err && err.message); });
 });
 
 // Department self-edit (only while status = חדש) — no login required, mirrors report form

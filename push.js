@@ -70,11 +70,14 @@ async function notifyInternalTeam(payload) {
     WHERE w.kind IN ('manager','worker')
   `).all();
 
+  console.log(`📣 notifyInternalTeam: found ${subs.length} subscription(s) to send to`);
+
   const body = JSON.stringify(payload);
   await Promise.all(subs.map(async (s) => {
     const pushSubscription = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
     try {
       await webpush.sendNotification(pushSubscription, body);
+      console.log("✅ push sent OK to endpoint:", s.endpoint && s.endpoint.slice(0, 60));
     } catch (err) {
       // 404/410 = the push service says this subscription is gone (uninstalled, expired, etc.) — clean it up
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
