@@ -1965,7 +1965,9 @@
       await apiJson("/api/push/subscribe", "POST", { subscription: sub });
       toast(tr("toast_push_enabled"));
     } catch(e){
-      toast(tr("push_permission_denied"));
+      console.error("push enable failed:", e);
+      const detail = (e && (e.message || e.name)) || "?";
+      toast(tr("push_permission_denied") + " — " + detail);
     }
     renderPushNotifRow();
   }
