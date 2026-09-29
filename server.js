@@ -8,6 +8,7 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const db = require("./db");
+const push = require("./push");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -143,7 +144,16 @@ app.post("/api/tasks", upload.array("attachments", 10), (req, res) => {
     insertAtt.run(id, kind, "/uploads/" + f.filename, f.originalname);
   });
 
-  res.json({ task: serializeTask(db.prepare("SELECT * FROM tasks WHERE id = ?").get(id)) });
+  const createdTask = serializeTask(db.prepare("SELECT * FROM tasks WHERE id = ?").get(id));
+  res.json({ task: createdTask });
+
+  // fire-and-forget: notify the maintenance team's phones (does not delay the response to the reporting department)
+  push.notifyInternalTeam({
+    title: (createdTask.priority === "שבר/עוצר עבודה" ? "🔴 תקלה דחופה חדשה" : "🔧 תקלה חדשה") + " · " + createdTask.department,
+    body: createdTask.title,
+    url: "/?task=" + createdTask.id,
+    tag: "task-" + createdTask.id
+  }).catch(() => {});
 });
 
 // Department self-edit (only while status = חדש) — no login required, mirrors report form
@@ -286,6 +296,23 @@ app.delete("/api/equipment/:name", requireAuth, (req, res) => {
   if (used > 0) return res.status(409).json({ error: "לא ניתן להסיר — יש משימות המקושרות לציוד הזה" });
   db.prepare("DELETE FROM equipment WHERE name = ?").run(name);
   res.json({ ok: true });
+});
+
+/* ================= PUSH NOTIFICATIONS ================= */
+app.get("/api/push/vapid-public-key", (req, res) => {
+  res.json({ publicKey: push.getPublicKey() });
+});
+app.post("/api/push/subscribe", requireAuth, (req, res) => {
+  const ok = push.saveSubscription(req.session.workerId, (req.body || {}).subscription);
+  if (!ok) return res.status(400).json({ error: "מנוי לא תקין" });
+  res.json({ ok: true });
+});
+app.post("/api/push/unsubscribe", requireAuth, (req, res) => {
+  push.removeSubscriptionByEndpoint((req.body || {}).endpoint);
+  res.json({ ok: true });
+});
+app.get("/api/push/status", requireAuth, (req, res) => {
+  res.json({ subscribed: push.hasSubscription(req.session.workerId) });
 });
 
 /* ================= fallback to SPA ================= */
