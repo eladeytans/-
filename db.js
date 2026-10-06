@@ -17,6 +17,10 @@ function migrate() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS workers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -67,6 +71,23 @@ function migrate() {
       created_at TEXT NOT NULL
     );
   `);
+
+  // tasks.project was added after the initial release — add it to any pre-existing DB that doesn't have it yet.
+  ensureColumn("tasks", "project", "TEXT");
+}
+
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function seedProjectsIfEmpty() {
+  const projectCount = db.prepare("SELECT COUNT(*) AS c FROM projects").get().c;
+  if (projectCount > 0) return; // already seeded (or the manager already removed the defaults)
+  const insertProject = db.prepare("INSERT INTO projects (name) VALUES (?)");
+  ["משרד הבריאות", "בטיחות"].forEach(p => insertProject.run(p));
 }
 
 function seedIfEmpty() {
@@ -144,5 +165,6 @@ function seedIfEmpty() {
 
 migrate();
 seedIfEmpty();
+seedProjectsIfEmpty();
 
 module.exports = db;
