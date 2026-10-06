@@ -67,6 +67,7 @@ function serializeTask(t) {
     department: t.department,
     reporter: t.reporter,
     equipment: t.equipment,
+    project: t.project,
     priority: t.priority,
     status: t.status,
     assignedTo: t.assigned_to,
@@ -116,9 +117,10 @@ app.post("/api/auth/change-password", requireAuth, (req, res) => {
 app.get("/api/state", (req, res) => {
   const departments = db.prepare("SELECT name FROM departments ORDER BY id ASC").all().map(r => r.name);
   const equipment = db.prepare("SELECT name FROM equipment ORDER BY id ASC").all().map(r => r.name);
+  const projects = db.prepare("SELECT name FROM projects ORDER BY id ASC").all().map(r => r.name);
   const workers = db.prepare("SELECT * FROM workers ORDER BY rowid ASC").all().map(serializeWorker);
   const tasks = db.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all().map(serializeTask);
-  res.json({ departments, equipment, workers, tasks, me: currentWorker(req) });
+  res.json({ departments, equipment, projects, workers, tasks, me: currentWorker(req) });
 });
 
 /* ================= TASKS ================= */
@@ -134,9 +136,9 @@ app.post("/api/tasks", upload.array("attachments", 10), (req, res) => {
   const id = "t_" + crypto.randomBytes(8).toString("hex");
   const now = new Date().toISOString();
   db.prepare(`
-    INSERT INTO tasks (id, title, desc, department, reporter, equipment, priority, status, assigned_to, due_date, cost, invoice_number, dept_unseen_update, last_updated_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'חדש', NULL, ?, NULL, NULL, 0, NULL, ?)
-  `).run(id, title, b.desc || null, department, reporter, b.equipment || null, b.priority || "לא שבר", b.dueDate || null, now);
+    INSERT INTO tasks (id, title, desc, department, reporter, equipment, project, priority, status, assigned_to, due_date, cost, invoice_number, dept_unseen_update, last_updated_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'חדש', NULL, ?, NULL, NULL, 0, NULL, ?)
+  `).run(id, title, b.desc || null, department, reporter, b.equipment || null, b.project || null, b.priority || "לא שבר", b.dueDate || null, now);
 
   const insertAtt = db.prepare("INSERT INTO attachments (task_id, kind, url, name) VALUES (?, ?, ?, ?)");
   req.files.forEach(f => {
@@ -164,10 +166,10 @@ app.put("/api/tasks/:id/report", upload.array("attachments", 10), (req, res) => 
 
   const b = req.body || {};
   db.prepare(`
-    UPDATE tasks SET title=?, desc=?, department=?, reporter=?, equipment=?, priority=?, due_date=? WHERE id=?
+    UPDATE tasks SET title=?, desc=?, department=?, reporter=?, equipment=?, project=?, priority=?, due_date=? WHERE id=?
   `).run(
     (b.title || t.title).trim(), b.desc ?? t.desc, b.department || t.department, (b.reporter || t.reporter).trim(),
-    b.equipment || null, b.priority || t.priority, b.dueDate || null, t.id
+    b.equipment || null, b.project || null, b.priority || t.priority, b.dueDate || null, t.id
   );
 
   if (b.removeAttachmentIds) {
@@ -207,13 +209,14 @@ app.put("/api/tasks/:id/manager", requireAuth, (req, res) => {
     assigned_to: b.assignedTo !== undefined ? (b.assignedTo || null) : t.assigned_to,
     due_date: b.dueDate !== undefined ? (b.dueDate || null) : t.due_date,
     cost: b.cost !== undefined ? (b.cost === null ? null : Number(b.cost)) : t.cost,
-    invoice_number: b.invoiceNumber !== undefined ? (b.invoiceNumber || null) : t.invoice_number
+    invoice_number: b.invoiceNumber !== undefined ? (b.invoiceNumber || null) : t.invoice_number,
+    project: b.project !== undefined ? (b.project || null) : t.project
   };
   // auto-move to "בטיפול" the first time a task gets assigned, mirroring the original prototype's behavior
   if (fields.assigned_to && t.status === "חדש" && b.status === undefined) fields.status = "בטיפול";
 
   db.prepare(`
-    UPDATE tasks SET status=@status, priority=@priority, assigned_to=@assigned_to, due_date=@due_date, cost=@cost, invoice_number=@invoice_number WHERE id=@id
+    UPDATE tasks SET status=@status, priority=@priority, assigned_to=@assigned_to, due_date=@due_date, cost=@cost, invoice_number=@invoice_number, project=@project WHERE id=@id
   `).run({ ...fields, id: t.id });
 
   const notifyFields = ["status", "priority", "assigned_to", "due_date"];
@@ -295,6 +298,21 @@ app.delete("/api/equipment/:name", requireAuth, (req, res) => {
   const used = db.prepare("SELECT COUNT(*) c FROM tasks WHERE equipment = ?").get(name).c;
   if (used > 0) return res.status(409).json({ error: "לא ניתן להסיר — יש משימות המקושרות לציוד הזה" });
   db.prepare("DELETE FROM equipment WHERE name = ?").run(name);
+  res.json({ ok: true });
+});
+
+/* ================= PROJECTS ================= */
+app.post("/api/projects", requireAuth, (req, res) => {
+  const name = ((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ error: "שם ריק" });
+  try { db.prepare("INSERT INTO projects (name) VALUES (?)").run(name); } catch (e) { /* already exists */ }
+  res.json({ ok: true });
+});
+app.delete("/api/projects/:name", requireAuth, (req, res) => {
+  const name = decodeURIComponent(req.params.name);
+  const used = db.prepare("SELECT COUNT(*) c FROM tasks WHERE project = ?").get(name).c;
+  if (used > 0) return res.status(409).json({ error: "לא ניתן להסיר — קיימות משימות מהפרויקט הזה" });
+  db.prepare("DELETE FROM projects WHERE name = ?").run(name);
   res.json({ ok: true });
 });
 
