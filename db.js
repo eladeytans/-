@@ -1,9 +1,12 @@
 // db.js — SQLite schema + seed data for מוקד אחזקה
+const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 
 const DB_PATH = path.join(__dirname, "data", "app.db");
+// data/ is not in git, so create it on a fresh deploy before opening the DB
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
