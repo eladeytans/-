@@ -482,6 +482,10 @@
             <select id="f-equipment"><option value="" data-i18n="opt_not_selected">— לא נבחר —</option></select>
           </div>
           <div>
+            <label data-i18n="label_project">פרויקט</label>
+            <select id="f-project"><option value="" data-i18n="opt_no_project">— ללא פרויקט —</option></select>
+          </div>
+          <div>
             <label data-i18n="label_priority_suggestion">דחיפות (הצעה שלכם)</label>
             <select id="f-priority">
               <option value="שבר/עוצר עבודה" data-i18n="priority_critical">שבר / עוצר עבודה</option>
@@ -536,6 +540,7 @@
     <div class="role-switch no-print" id="mgr-subtabs" style="margin-bottom:16px;">
       <button id="btn-mgr-overview" class="active"><span data-i18n="mgr_tab_overview">📊 סקירה כללית</span></button>
       <button id="btn-mgr-assign"><span data-i18n="mgr_tab_assign">🎯 הקצאת משימות</span><span id="assign-tab-badge"></span></button>
+      <button id="btn-mgr-projects"><span data-i18n="mgr_tab_projects">🗂️ פרויקטים</span></button>
     </div>
 
     <!-- ---- sub-tab: overview ---- -->
@@ -570,6 +575,13 @@
           <div style="display:flex; gap:8px; margin-top:10px;">
             <input type="text" id="new-equip-input" placeholder="לדוגמה: קו לחמניות" data-i18n-placeholder="placeholder_new_equipment_example">
             <button class="btn small" id="btn-add-equip" data-i18n="btn_add">הוספה</button>
+          </div>
+
+          <h3 style="margin-top:18px;" data-i18n="projects_heading">פרויקטים במפעל</h3>
+          <div class="dept-chip-row" id="proj-chip-row"></div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <input type="text" id="new-proj-input" placeholder="לדוגמה: משרד הבריאות" data-i18n-placeholder="placeholder_new_project">
+            <button class="btn small" id="btn-add-proj" data-i18n="btn_add">הוספה</button>
           </div>
         </section>
       </div>
@@ -623,6 +635,10 @@
             <select id="af-equipment"><option value="" data-i18n="opt_all">הכל</option></select>
           </div>
           <div class="filter-item">
+            <label data-i18n="label_project">פרויקט</label>
+            <select id="af-project"><option value="" data-i18n="opt_all">הכל</option></select>
+          </div>
+          <div class="filter-item">
             <label data-i18n="label_date_from">מתאריך</label>
             <input type="date" id="af-date-from">
           </div>
@@ -640,6 +656,17 @@
           </div>
         </div>
         <div id="assign-task-table"></div>
+      </section>
+    </div>
+
+    <!-- ---- sub-tab: projects (each project's tasks, aggregated across departments) ---- -->
+    <div id="mgr-panel-projects" style="display:none;">
+      <section class="card">
+        <h2 data-i18n="projects_view_heading">🗂️ פרויקטים ומשימות משויכות</h2>
+        <p style="margin:-6px 0 14px; font-size:12px; color:var(--text-secondary);" data-i18n="projects_view_subtitle">
+          כל פרויקט מרכז את המשימות המשויכות אליו מכל המחלקות.
+        </p>
+        <div id="projects-overview"></div>
       </section>
     </div>
   </div>
@@ -675,7 +702,7 @@
   "use strict";
 
   /* ---------------- local (server-backed) state ---------------- */
-  const state = { departments: [], equipment: [], workers: [], tasks: [] };
+  const state = { departments: [], equipment: [], projects: [], workers: [], tasks: [] };
   let me = null; // currently-logged-in worker (manager/worker/supplier w/ login), or null
 
   let currentRole = "department";
@@ -699,6 +726,8 @@
     label_department: 'מחלקה',
     label_reporter_name: 'שם המדווח',
     label_equipment_relevant: 'ציוד רלוונטי',
+    label_project: 'פרויקט',
+    opt_no_project: '— ללא פרויקט —',
     label_priority_suggestion: 'דחיפות (הצעה שלכם)',
     label_title_short: 'כותרת קצרה',
     label_desc_optional: 'תיאור מפורט (אופציונלי)',
@@ -723,6 +752,13 @@
     opt_all_departments: 'כל המחלקות',
     mgr_tab_overview: '📊 סקירה כללית',
     mgr_tab_assign: '🎯 הקצאת משימות',
+    mgr_tab_projects: '🗂️ פרויקטים',
+    projects_view_heading: '🗂️ פרויקטים ומשימות משויכות',
+    projects_view_subtitle: 'כל פרויקט מרכז את המשימות המשויכות אליו מכל המחלקות.',
+    empty_no_projects: 'טרם הוגדרו פרויקטים',
+    empty_no_project_tasks: 'אין משימות בפרויקט זה',
+    project_open_count: '{count} משימות פתוחות',
+    toast_project_updated: 'הפרויקט עודכן',
     workload_heading: '👥 עומס עבודה לפי איש צוות',
     team_mgmt_heading: '⚙️ ניהול צוות ומחלקות',
     maint_team_heading: 'צוות האחזקה',
@@ -733,6 +769,8 @@
     btn_add: 'הוספה',
     equipment_heading: 'ציוד במפעל',
     placeholder_new_equipment_example: 'לדוגמה: קו לחמניות',
+    projects_heading: 'פרויקטים במפעל',
+    placeholder_new_project: 'לדוגמה: משרד הבריאות',
     equipment_chart_heading: '🔧 תקלות פתוחות לפי ציוד',
     assign_heading: '🎯 הקצאת משימות לצוות ולספקים',
     assign_subtitle: 'כל המשימות — כולל כאלה שכבר הוקצו — עם אפשרות לסנן, לשנות שיוך, דחיפות וסטטוס ישירות מכאן.',
@@ -765,6 +803,7 @@
     csv_header_department: 'מחלקה',
     csv_header_reporter: 'מדווח',
     csv_header_equipment: 'ציוד',
+    csv_header_project: 'פרויקט',
     csv_header_priority: 'דחיפות',
     csv_header_status: 'סטטוס',
     csv_header_assignee: 'משויך ל',
@@ -866,6 +905,7 @@
     btn_remove: 'הסר',
     title_remove_department: 'הסר מחלקה',
     title_remove_equipment: 'הסר ציוד',
+    title_remove_project: 'הסר פרויקט',
     no_equipment_identified: 'ללא ציוד מזוהה',
     empty_no_open_equipment_tasks: 'אין תקלות פתוחות עם ציוד מקושר',
     toast_report_updated: 'הדיווח עודכן ✔',
@@ -890,6 +930,7 @@
     err_empty_name: 'שם ריק',
     err_cant_remove_department_has_tasks: 'לא ניתן להסיר — קיימות משימות מהמחלקה הזו',
     err_cant_remove_equipment_has_tasks: 'לא ניתן להסיר — יש משימות המקושרות לציוד הזה',
+    err_cant_remove_project_has_tasks: 'לא ניתן להסיר — קיימות משימות מהפרויקט הזה',
     live_banner_title: 'מערכת חיה:',
     live_banner_body: 'כל הדיווחים, העדכונים והקבצים נשמרים בשרת ומשותפים בזמן אמת לכל מי שנכנס — המחלקות והצוות. דיווח ממחלקה אינו דורש התחברות (כדי לשמור על מהירות הדיווח), ולכן אינו מוגן בסיסמה; כניסה כ"צוות אחזקה" דורשת שם משתמש וסיסמה אמיתיים.',
     btn_enable_push: '🔔 הפעל התראות בטלפון',
@@ -910,6 +951,8 @@
     label_department: 'القسم',
     label_reporter_name: 'اسم المُبلِّغ',
     label_equipment_relevant: 'المعدة ذات الصلة',
+    label_project: 'المشروع',
+    opt_no_project: '— بدون مشروع —',
     label_priority_suggestion: 'الأولوية (اقتراحكم)',
     label_title_short: 'عنوان مختصر',
     label_desc_optional: 'وصف تفصيلي (اختياري)',
@@ -934,6 +977,13 @@
     opt_all_departments: 'كل الأقسام',
     mgr_tab_overview: '📊 نظرة عامة',
     mgr_tab_assign: '🎯 توزيع المهام',
+    mgr_tab_projects: '🗂️ المشاريع',
+    projects_view_heading: '🗂️ المشاريع والمهام المرتبطة بها',
+    projects_view_subtitle: 'كل مشروع يجمع المهام المرتبطة به من جميع الأقسام.',
+    empty_no_projects: 'لم يتم تعريف أي مشاريع بعد',
+    empty_no_project_tasks: 'لا توجد مهام في هذا المشروع',
+    project_open_count: '{count} مهام مفتوحة',
+    toast_project_updated: 'تم تحديث المشروع',
     workload_heading: '👥 عبء العمل حسب عضو الفريق',
     team_mgmt_heading: '⚙️ إدارة الفريق والأقسام',
     maint_team_heading: 'فريق الصيانة',
@@ -944,6 +994,8 @@
     btn_add: 'إضافة',
     equipment_heading: 'المعدات في المصنع',
     placeholder_new_equipment_example: 'مثال: خط الخبز',
+    projects_heading: 'المشاريع في المصنع',
+    placeholder_new_project: 'مثال: وزارة الصحة',
     equipment_chart_heading: '🔧 الأعطال المفتوحة حسب المعدة',
     assign_heading: '🎯 توزيع المهام على الفريق والموردين',
     assign_subtitle: 'جميع المهام — بما فيها التي تم توزيعها بالفعل — مع إمكانية التصفية وتغيير التوزيع والأولوية والحالة مباشرة من هنا.',
@@ -976,6 +1028,7 @@
     csv_header_department: 'القسم',
     csv_header_reporter: 'المُبلِّغ',
     csv_header_equipment: 'المعدة',
+    csv_header_project: 'المشروع',
     csv_header_priority: 'الأولوية',
     csv_header_status: 'الحالة',
     csv_header_assignee: 'مُسند إلى',
@@ -1077,6 +1130,7 @@
     btn_remove: 'إزالة',
     title_remove_department: 'إزالة القسم',
     title_remove_equipment: 'إزالة المعدة',
+    title_remove_project: 'إزالة المشروع',
     no_equipment_identified: 'بدون معدة محددة',
     empty_no_open_equipment_tasks: 'لا توجد أعطال مفتوحة مرتبطة بمعدة',
     toast_report_updated: 'تم تحديث البلاغ ✔',
@@ -1101,6 +1155,7 @@
     err_empty_name: 'الاسم فارغ',
     err_cant_remove_department_has_tasks: 'لا يمكن الإزالة — توجد مهام من هذا القسم',
     err_cant_remove_equipment_has_tasks: 'لا يمكن الإزالة — توجد مهام مرتبطة بهذه المعدة',
+    err_cant_remove_project_has_tasks: 'لا يمكن الإزالة — توجد مهام من هذا المشروع',
     live_banner_title: 'نظام حي:',
     live_banner_body: 'جميع البلاغات والتحديثات والملفات تُحفظ في الخادم وتكون مشتركة في الوقت الفعلي لكل من يدخل — الأقسام والفريق. الإبلاغ من القسم لا يتطلب تسجيل دخول (للحفاظ على سرعة الإبلاغ)، ولذلك فهو غير محمي بكلمة مرور؛ الدخول كـ"فريق الصيانة" يتطلب اسم مستخدم وكلمة مرور حقيقيين.',
     btn_enable_push: '🔔 تفعيل التنبيهات في الهاتف',
@@ -1121,6 +1176,8 @@
     label_department: 'แผนก',
     label_reporter_name: 'ชื่อผู้แจ้ง',
     label_equipment_relevant: 'อุปกรณ์ที่เกี่ยวข้อง',
+    label_project: 'โปรเจกต์',
+    opt_no_project: '— ไม่มีโปรเจกต์ —',
     label_priority_suggestion: 'ความเร่งด่วน (ข้อเสนอแนะของคุณ)',
     label_title_short: 'หัวข้อสั้น ๆ',
     label_desc_optional: 'รายละเอียด (ไม่บังคับ)',
@@ -1145,6 +1202,13 @@
     opt_all_departments: 'ทุกแผนก',
     mgr_tab_overview: '📊 ภาพรวม',
     mgr_tab_assign: '🎯 มอบหมายงาน',
+    mgr_tab_projects: '🗂️ โปรเจกต์',
+    projects_view_heading: '🗂️ โปรเจกต์และงานที่เกี่ยวข้อง',
+    projects_view_subtitle: 'แต่ละโปรเจกต์รวบรวมงานที่เกี่ยวข้องจากทุกแผนก',
+    empty_no_projects: 'ยังไม่มีการกำหนดโปรเจกต์',
+    empty_no_project_tasks: 'ไม่มีงานในโปรเจกต์นี้',
+    project_open_count: 'งานที่ยังเปิดอยู่ {count} รายการ',
+    toast_project_updated: 'อัปเดตโปรเจกต์แล้ว',
     workload_heading: '👥 ปริมาณงานตามพนักงาน',
     team_mgmt_heading: '⚙️ จัดการทีมและแผนก',
     maint_team_heading: 'ทีมซ่อมบำรุง',
@@ -1155,6 +1219,8 @@
     btn_add: 'เพิ่ม',
     equipment_heading: 'อุปกรณ์ในโรงงาน',
     placeholder_new_equipment_example: 'ตัวอย่าง: สายการผลิตขนมปัง',
+    projects_heading: 'โปรเจกต์ในโรงงาน',
+    placeholder_new_project: 'ตัวอย่าง: กระทรวงสาธารณสุข',
     equipment_chart_heading: '🔧 ปัญหาที่ยังไม่ปิดตามอุปกรณ์',
     assign_heading: '🎯 มอบหมายงานให้ทีมและผู้รับเหมา',
     assign_subtitle: 'งานทั้งหมด — รวมถึงงานที่มอบหมายไปแล้ว — พร้อมตัวกรอง และสามารถเปลี่ยนผู้รับผิดชอบ ความเร่งด่วน และสถานะได้จากที่นี่โดยตรง',
@@ -1187,6 +1253,7 @@
     csv_header_department: 'แผนก',
     csv_header_reporter: 'ผู้แจ้ง',
     csv_header_equipment: 'อุปกรณ์',
+    csv_header_project: 'โปรเจกต์',
     csv_header_priority: 'ความเร่งด่วน',
     csv_header_status: 'สถานะ',
     csv_header_assignee: 'มอบหมายให้',
@@ -1288,6 +1355,7 @@
     btn_remove: 'ลบ',
     title_remove_department: 'ลบแผนก',
     title_remove_equipment: 'ลบอุปกรณ์',
+    title_remove_project: 'ลบโปรเจกต์',
     no_equipment_identified: 'ไม่ระบุอุปกรณ์',
     empty_no_open_equipment_tasks: 'ไม่มีปัญหาที่ยังเปิดอยู่ซึ่งเชื่อมโยงกับอุปกรณ์',
     toast_report_updated: 'อัปเดตรายงานแล้ว ✔',
@@ -1312,6 +1380,7 @@
     err_empty_name: 'ชื่อว่างเปล่า',
     err_cant_remove_department_has_tasks: 'ไม่สามารถลบได้ — มีงานจากแผนกนี้อยู่',
     err_cant_remove_equipment_has_tasks: 'ไม่สามารถลบได้ — มีงานที่เชื่อมโยงกับอุปกรณ์นี้อยู่',
+    err_cant_remove_project_has_tasks: 'ไม่สามารถลบได้ — มีงานจากโปรเจกต์นี้อยู่',
     live_banner_title: 'ระบบใช้งานจริง:',
     live_banner_body: 'รายงาน การอัปเดต และไฟล์ทั้งหมดถูกบันทึกไว้ที่เซิร์ฟเวอร์ และแชร์แบบเรียลไทม์ให้ทุกคนที่เข้าใช้งาน — ทั้งแผนกต่าง ๆ และทีมงาน การแจ้งปัญหาจากแผนกไม่ต้องเข้าสู่ระบบ (เพื่อให้แจ้งได้รวดเร็ว) จึงไม่มีการป้องกันด้วยรหัสผ่าน ส่วนการเข้าใช้งานในฐานะ "ทีมซ่อมบำรุง" ต้องใช้ชื่อผู้ใช้และรหัสผ่านจริง',
     btn_enable_push: '🔔 เปิดการแจ้งเตือนบนโทรศัพท์',
@@ -1351,6 +1420,7 @@
     "שם ריק": "err_empty_name",
     "לא ניתן להסיר — קיימות משימות מהמחלקה הזו": "err_cant_remove_department_has_tasks",
     "לא ניתן להסיר — יש משימות המקושרות לציוד הזה": "err_cant_remove_equipment_has_tasks",
+    "לא ניתן להסיר — קיימות משימות מהפרויקט הזה": "err_cant_remove_project_has_tasks",
     "מנוי לא תקין": "err_invalid_subscription"
   };
 
@@ -1528,6 +1598,7 @@
     const data = await apiFetch("/api/state", { silent: true });
     state.departments = data.departments;
     state.equipment = data.equipment;
+    state.projects = data.projects;
     state.workers = data.workers;
     state.tasks = data.tasks;
     me = data.me;
@@ -1552,13 +1623,13 @@
   function exportCsv(list){
     const headers = [
       tr("csv_header_title"), tr("csv_header_department"), tr("csv_header_reporter"), tr("csv_header_equipment"),
-      tr("csv_header_priority"), tr("csv_header_status"), tr("csv_header_assignee"), tr("csv_header_cost"),
+      tr("csv_header_project"), tr("csv_header_priority"), tr("csv_header_status"), tr("csv_header_assignee"), tr("csv_header_cost"),
       tr("csv_header_invoice"), tr("csv_header_due_date"), tr("csv_header_reported_date")
     ];
     const rows = list.map(t=>{
       const w = t.assignedTo ? workerById(t.assignedTo) : null;
       return [
-        t.title, t.department, t.reporter, t.equipment || "", priorityLabel(t.priority), statusLabel(t.status),
+        t.title, t.department, t.reporter, t.equipment || "", t.project || "", priorityLabel(t.priority), statusLabel(t.status),
         w ? assigneeLabel(w) : tr("csv_unassigned"),
         t.cost != null ? t.cost : "",
         t.invoiceNumber || "",
@@ -1639,6 +1710,10 @@
   function priorityOptionsHtml(current){
     return PRIORITY_LIST.map(p=>`<option value="${p}" ${p===current?"selected":""}>${escapeHtml(priorityLabel(p))}</option>`).join("");
   }
+  function projectOptionsHtml(current){
+    return `<option value="">${escapeHtml(tr("opt_no_project"))}</option>` +
+      state.projects.map(p=>`<option value="${escapeHtml(p)}" ${p===current?"selected":""}>${escapeHtml(p)}</option>`).join("");
+  }
 
   function openTaskDetail(t){
     openDetailTaskId = t.id;
@@ -1652,6 +1727,7 @@
       el("span", {class:"badge st-"+t.status}, statusLabel(t.status))
     );
     if (t.equipment) badges.appendChild(el("span", {class:"plain-chip"}, "🔧 "+t.equipment));
+    if (t.project) badges.appendChild(el("span", {class:"plain-chip"}, "🗂️ "+t.project));
     box.appendChild(badges);
 
     const assignedWorker = t.assignedTo ? workerById(t.assignedTo) : null;
@@ -1709,6 +1785,18 @@
       });
       dueWrap.appendChild(dueInput);
       editGrid.appendChild(dueWrap);
+
+      const projWrap = el("div", null, el("label", null, tr("label_project")));
+      const projSel = el("select", {class:"inline", style:"width:100%; padding:9px 11px;", html: projectOptionsHtml(t.project)});
+      projSel.addEventListener("change", async e=>{
+        try {
+          await apiJson(`/api/tasks/${t.id}/manager`, "PUT", { project: e.target.value || null });
+          toast(tr("toast_project_updated"));
+          await refreshAndReopenDetail(t.id);
+        } catch(err){}
+      });
+      projWrap.appendChild(projSel);
+      editGrid.appendChild(projWrap);
 
       const assigneeWrap = el("div", {class:"full"}, el("label", null, tr("label_assignee_team_supplier")));
       assigneeWrap.appendChild(renderAssigneeCell(t, {afterChange: ()=> refreshAndReopenDetail(t.id)}));
@@ -2044,12 +2132,15 @@
   /* ---------------- manager sub-tabs ---------------- */
   $("#btn-mgr-overview").addEventListener("click", ()=> setMgrTab("overview"));
   $("#btn-mgr-assign").addEventListener("click", ()=> setMgrTab("assign"));
+  $("#btn-mgr-projects").addEventListener("click", ()=> setMgrTab("projects"));
   function setMgrTab(tab){
     currentMgrTab = tab;
     $("#btn-mgr-overview").classList.toggle("active", tab==="overview");
     $("#btn-mgr-assign").classList.toggle("active", tab==="assign");
+    $("#btn-mgr-projects").classList.toggle("active", tab==="projects");
     $("#mgr-panel-overview").style.display = tab==="overview" ? "" : "none";
     $("#mgr-panel-assign").style.display = tab==="assign" ? "" : "none";
+    $("#mgr-panel-projects").style.display = tab==="projects" ? "" : "none";
   }
 
   /* ---------------- dropdown population ---------------- */
@@ -2074,6 +2165,17 @@
       node.innerHTML = "";
       node.appendChild(el("option", {value:""}, sel === "#af-equipment" ? tr("opt_all") : tr("opt_not_selected")));
       state.equipment.forEach(eq=> node.appendChild(el("option", {value:eq}, eq)));
+      if ([...node.options].some(o=>o.value===currentVal)) node.value = currentVal;
+    });
+  }
+  function fillProjectSelects(){
+    const targets = ["#f-project", "#af-project"];
+    targets.forEach(sel=>{
+      const node = $(sel);
+      const currentVal = node.value;
+      node.innerHTML = "";
+      node.appendChild(el("option", {value:""}, sel === "#af-project" ? tr("opt_all") : tr("opt_no_project")));
+      state.projects.forEach(p=> node.appendChild(el("option", {value:p}, p)));
       if ([...node.options].some(o=>o.value===currentVal)) node.value = currentVal;
     });
   }
@@ -2108,6 +2210,7 @@
     $("#f-department").value = t.department;
     $("#f-reporter").value = t.reporter;
     $("#f-equipment").value = t.equipment || "";
+    $("#f-project").value = t.project || "";
     $("#f-priority").value = t.priority;
     $("#f-title").value = t.title;
     $("#f-desc").value = t.desc || "";
@@ -2171,6 +2274,7 @@
     fd.append("department", department);
     fd.append("reporter", reporter);
     fd.append("equipment", $("#f-equipment").value || "");
+    fd.append("project", $("#f-project").value || "");
     fd.append("priority", $("#f-priority").value);
     const dueVal = $("#f-due-date").value;
     if (dueVal) fd.append("dueDate", dueVal);
@@ -2233,7 +2337,7 @@
         const titleParts = [t.title + attachTag(t) + noteTag(t)];
         const titleDiv = el("div", {class:"task-title clickable", onclick:()=> openTaskDetail(t)}, ...titleParts);
         if (t.deptUnseenUpdate) titleDiv.appendChild(el("span", {class:"new-update-tag"}, tr("new_update_tag")));
-        const metaBits = [(t.equipment? "🔧 "+t.equipment+" · " : "") + tr("reported_by", { name: t.reporter })];
+        const metaBits = [(t.equipment? "🔧 "+t.equipment+" · " : "") + (t.project? "🗂️ "+t.project+" · " : "") + tr("reported_by", { name: t.reporter })];
         const metaDiv = el("div", {class:"task-meta"}, ...metaBits);
         if (due){ metaDiv.appendChild(el("br")); metaDiv.appendChild(el("span", {class:"due-tag "+due.cls}, due.label)); }
         const editable = t.status === "חדש";
@@ -2303,7 +2407,7 @@
   }
 
   /* ---------------- manager task table ---------------- */
-  ["#af-department","#af-status","#af-priority","#af-assignee","#af-equipment","#af-sort","#af-date-from","#af-date-to"].forEach(sel=>{
+  ["#af-department","#af-status","#af-priority","#af-assignee","#af-equipment","#af-project","#af-sort","#af-date-from","#af-date-to"].forEach(sel=>{
     $(sel).addEventListener("change", renderMgrTaskTable);
   });
   $("#af-search").addEventListener("input", renderMgrTaskTable);
@@ -2318,7 +2422,7 @@
   function getFilteredAssignTasks(){
     const fd = $("#af-department").value, fs = $("#af-status").value,
           fp = $("#af-priority").value, fa = $("#af-assignee").value,
-          fe = $("#af-equipment").value,
+          fe = $("#af-equipment").value, fpj = $("#af-project").value,
           q = $("#af-search").value.trim().toLowerCase(),
           dateFrom = $("#af-date-from").value, dateTo = $("#af-date-to").value,
           sort = $("#af-sort").value;
@@ -2334,6 +2438,7 @@
       }
       if (fa && fa !== "__unassigned__" && fa !== "__any_supplier__" && t.assignedTo !== fa) return false;
       if (fe && t.equipment !== fe) return false;
+      if (fpj && t.project !== fpj) return false;
       if (q && !(t.title+" "+(t.desc||"")+" "+t.reporter).toLowerCase().includes(q)) return false;
       if (dateFrom && isoDateOnly(t.createdAt) < dateFrom) return false;
       if (dateTo && isoDateOnly(t.createdAt) > dateTo) return false;
@@ -2378,7 +2483,7 @@
         <td>
           <div class="task-title clickable">${escapeHtml(t.title)}${escapeHtml(rowTag)}</div>
           ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ""}
-          <div class="task-meta">${t.equipment ? "🔧 "+escapeHtml(t.equipment)+" · " : ""}${escapeHtml(tr("reported_by", { name: t.reporter }))}${due ? `<br><span class="due-tag ${due.cls}">${escapeHtml(due.label)}</span>` : ""}</div>
+          <div class="task-meta">${t.equipment ? "🔧 "+escapeHtml(t.equipment)+" · " : ""}${t.project ? "🗂️ "+escapeHtml(t.project)+" · " : ""}${escapeHtml(tr("reported_by", { name: t.reporter }))}${due ? `<br><span class="due-tag ${due.cls}">${escapeHtml(due.label)}</span>` : ""}</div>
         </td>
         <td>${escapeHtml(t.department)}</td>
         <td><select class="inline f-priority">${priorityOptionsHtml(t.priority)}</select></td>
@@ -2635,6 +2740,24 @@
     try { await apiJson("/api/equipment", "POST", { name: val }); input.value = ""; await refreshAndRender(); } catch(err){}
   });
 
+  function renderProjectChips(){
+    const row = $("#proj-chip-row");
+    row.innerHTML = "";
+    state.projects.forEach(p=>{
+      row.appendChild(el("div", {class:"dept-chip"}, p,
+        el("button", {title: tr("title_remove_project"), onclick: async ()=>{
+          try { await apiFetch(`/api/projects/${encodeURIComponent(p)}`, { method:"DELETE" }); await refreshAndRender(); } catch(err){}
+        }}, "✕")
+      ));
+    });
+  }
+  $("#btn-add-proj").addEventListener("click", async ()=>{
+    const input = $("#new-proj-input");
+    const val = input.value.trim();
+    if (!val || state.projects.includes(val)) return;
+    try { await apiJson("/api/projects", "POST", { name: val }); input.value = ""; await refreshAndRender(); } catch(err){}
+  });
+
   /* ---------------- equipment chart ---------------- */
   function renderEquipmentChart(){
     const container = $("#equipment-chart");
@@ -2660,10 +2783,52 @@
     });
   }
 
+  /* ---------------- projects panel (each project's tasks, aggregated across departments) ---------------- */
+  function renderProjectsPanel(){
+    const container = $("#projects-overview");
+    if (!container) return;
+    container.innerHTML = "";
+    if (!state.projects.length){
+      container.appendChild(el("div", {class:"empty-state"}, tr("empty_no_projects")));
+      return;
+    }
+    state.projects.forEach(p=>{
+      const tasksForProject = state.tasks.filter(t=> t.project === p).slice().sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
+      const openCount = tasksForProject.filter(t=> t.status==="חדש" || t.status==="בטיפול").length;
+      const section = el("div", {class:"card", style:"margin-bottom:16px; padding:14px;"});
+      section.appendChild(el("h3", {style:"margin:0 0 8px;"}, "🗂️ " + p + " · " + tr("project_open_count", { count: openCount })));
+      if (!tasksForProject.length){
+        section.appendChild(el("div", {class:"empty-state"}, tr("empty_no_project_tasks")));
+      } else {
+        const table = el("table", {class:"task-table"},
+          el("thead", null, el("tr", null,
+            el("th", null, tr("th_fault")), el("th", null, tr("th_department")), el("th", null, tr("th_priority")),
+            el("th", null, tr("th_status")), el("th", null, tr("th_assigned")), el("th", null, tr("th_date"))
+          )),
+          el("tbody", null, ...tasksForProject.map(t=>{
+            const w = t.assignedTo ? workerById(t.assignedTo) : null;
+            const titleDiv = el("div", {class:"task-title clickable", onclick:()=> openTaskDetail(t)}, t.title + attachTag(t) + noteTag(t));
+            return el("tr", null,
+              el("td", null, titleDiv),
+              el("td", null, t.department),
+              el("td", null, el("span", {class:"badge "+priorityClass(t.priority)}, priorityLabel(t.priority))),
+              el("td", null, el("span", {class:"badge st-"+t.status}, statusLabel(t.status))),
+              el("td", null, w ? assigneeLabel(w) : "—"),
+              el("td", null, fmtDate(t.createdAt))
+            );
+          }))
+        );
+        section.appendChild(table);
+      }
+      container.appendChild(section);
+    });
+  }
+
   /* ---------------- render all ---------------- */
   function renderAll(){
     fillDepartmentSelects();
     fillEquipmentSelects();
+    fillProjectSelects();
     fillAssigneeSelect();
     renderNotifBadge();
     renderReporterHint();
@@ -2678,7 +2843,9 @@
       renderWorkerList();
       renderDeptChips();
       renderEquipChips();
+      renderProjectChips();
       renderEquipmentChart();
+      renderProjectsPanel();
     }
   }
 
